@@ -46,11 +46,15 @@ def resolveGitCommit() {
     }
 }
 if (optionalTransportModule) {
+    // file() in this script resolves relative to the app/ module dir, but the
+    // transport overlay lives relative to the project root. Resolve it through
+    // rootProject so the overlay src/res/jniLibs/assets are picked up.
+    def transportDir = rootProject.file(optionalTransportModule)
     android.sourceSets.main {
-        java.srcDirs += file("$optionalTransportModule/src")
-        res.srcDirs += file("$optionalTransportModule/res")
-        jniLibs.srcDirs += file("$optionalTransportModule/jniLibs")
-        assets.srcDirs += file("$optionalTransportModule/assets")
+        java.srcDirs += transportDir.path + '/src'
+        res.srcDirs += transportDir.path + '/res'
+        jniLibs.srcDirs += transportDir.path + '/jniLibs'
+        assets.srcDirs += transportDir.path + '/assets'
     }
 }
 
