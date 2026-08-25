@@ -33,6 +33,7 @@ public final class VncTransportProvider implements OptionalTransportProvider {
 
     private DexVncFrameSource frameSource;
     private RfbServer rfbServer;
+    private VncHttpServer vncHttpServer;
     private volatile boolean running;
     private volatile int activeDisplayId = -1;
 
@@ -44,6 +45,11 @@ public final class VncTransportProvider implements OptionalTransportProvider {
     @Override
     public String label() {
         return "VNC";
+    }
+
+    /** Web (noVNC) port served by {@link VncHttpServer}. */
+    public static int webPort() {
+        return VncHttpServer.webPort();
     }
 
     @Override
@@ -71,6 +77,10 @@ public final class VncTransportProvider implements OptionalTransportProvider {
         State.log("[VNC] stop");
         running = false;
         activeDisplayId = -1;
+        if (vncHttpServer != null) {
+            vncHttpServer.stop();
+            vncHttpServer = null;
+        }
         if (rfbServer != null) {
             rfbServer.stop();
             rfbServer = null;
@@ -152,6 +162,12 @@ public final class VncTransportProvider implements OptionalTransportProvider {
             VncInputInjector.focus();
 
             rfbServer.startAsync(DEFAULT_PORT);
+            android.content.Context httpCtx = State.getContext();
+            if (httpCtx != null) {
+                vncHttpServer = new VncHttpServer(httpCtx, rfbServer);
+                vncHttpServer.start();
+                State.log("[VNC] noVNC web server on :" + VncHttpServer.webPort());
+            }
             State.log("[VNC] server listening on :" + DEFAULT_PORT + " displayId=" + vdId);
 
             if (callback != null) {
@@ -167,6 +183,10 @@ public final class VncTransportProvider implements OptionalTransportProvider {
     private void releaseLocal() {
         activeDisplayId = -1;
         running = false;
+        if (vncHttpServer != null) {
+            vncHttpServer.stop();
+            vncHttpServer = null;
+        }
         if (rfbServer != null) {
             rfbServer.stop();
             rfbServer = null;

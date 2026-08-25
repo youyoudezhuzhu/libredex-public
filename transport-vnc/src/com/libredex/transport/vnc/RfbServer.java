@@ -7,7 +7,6 @@ import java.io.InputStream;
 import java.io.OutputStream;
 import java.net.ServerSocket;
 import java.net.Socket;
-import java.util.ArrayList;
 import java.util.List;
 import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.concurrent.atomic.AtomicBoolean;
@@ -22,6 +21,10 @@ import java.util.zip.Deflater;
  * (R/G/B each 8 bits, shifts 16/8/0, little-endian) and encode rects with
  * ZRLE (encoding 16); we also fall back to ZRLE's raw tiles and solid tiles
  * so no external native library is required.</p>
+ *
+ * <p>Clients may join through a legacy TCP socket (TightVNC/RealVNC) or
+ * through the noVNC WebSocket bridged by {@link VncHttpServer} via
+ * {@link #addConnection(RfbConnection)}.</p>
  */
 public final class RfbServer {
 
@@ -94,11 +97,8 @@ public final class RfbServer {
         while (running.get()) {
             try {
                 Socket socket = serverSocket.accept();
-                ClientHandler handler = new ClientHandler(socket);
-                clients.add(handler);
-                Thread t = new Thread(handler, "libredex-vnc-client");
-                t.setDaemon(true);
-                t.start();
+                socket.setTcpNoDelay(true);
+                addConnection(new SocketRfbConnection(socket));
             } catch (Throwable t) {
                 if (running.get()) {
                     // transient accept failure, keep going
@@ -107,6 +107,19 @@ public final class RfbServer {
                 }
             }
         }
+    }
+
+    /** Registers a non-TCP client (e.g. a noVNC WebSocket bridge). */
+    public void addConnection(RfbConnection conn) {
+        if (!running.get()) {
+            conn.close();
+            return;
+        }
+        ClientHandler handler = new ClientHandler(conn);
+        clients.add(handler);
+        Thread t = new Thread(handler, "libredex-vnc-client");
+        t.setDaemon(true);
+        t.start();
     }
 
     public void stop() {
@@ -130,7 +143,7 @@ public final class RfbServer {
     // per-client connection
     // ------------------------------------------------------------------
     private final class ClientHandler implements Runnable {
-        private final Socket socket;
+        private final RfbConnection conn;
         private final Object writeLock = new Object();
         private volatile DataOutputStream out;
         private byte[] prevRgba;
@@ -140,8 +153,8 @@ public final class RfbServer {
         private boolean firstRequest = true;
         private final AtomicBoolean dirty = new AtomicBoolean(false);
 
-        ClientHandler(Socket socket) {
-            this.socket = socket;
+        ClientHandler(RfbConnection conn) {
+            this.conn = conn;
         }
 
         void wakeUp() {
@@ -150,7 +163,7 @@ public final class RfbServer {
 
         void close() {
             try {
-                socket.close();
+                conn.close();
             } catch (Throwable ignored) {
             }
         }
@@ -158,9 +171,8 @@ public final class RfbServer {
         @Override
         public void run() {
             try {
-                socket.setTcpNoDelay(true);
-                DataInputStream in = new DataInputStream(socket.getInputStream());
-                DataOutputStream out = new DataOutputStream(socket.getOutputStream());
+                DataInputStream in = new DataInputStream(conn.input());
+                DataOutputStream out = new DataOutputStream(conn.output());
                 this.out = out;
                 handshake(in, out);
                 messageLoop(in, out);
@@ -293,11 +305,6 @@ public final class RfbServer {
             }
             int fw = latestW;
             int fh = latestH;
-            if (fw != width || fh != height) {
-                // framebuffer changed size; clamp by re-advertising is complex, so encode whole.
-                fw = Math.min(fw, width);
-                fh = Math.min(fh, height);
-            }
             int[] bbox = computeDirty(frame, prevRgba, fw, fh, incremental, firstRequest);
             boolean first = firstRequest;
             firstRequest = false;
@@ -364,11 +371,6 @@ public final class RfbServer {
             return new int[]{minX, minY, maxX - minX + 1, maxY - minY + 1};
         }
 
-        @Override
-        public void finalize() {
-            close();
-        }
-
         private void encodeTiles(DataOutputStream tileOut, byte[] frame, int fw,
                                  int x, int y, int w, int h) throws Exception {
             for (int ty = y; ty < y + h; ty += 64) {
@@ -384,7 +386,6 @@ public final class RfbServer {
                                 int x, int y, int tw, int th) throws Exception {
             int r0 = 0, g0 = 0, b0 = 0;
             boolean solid = true;
-            // examine the tile pixels
             outer:
             for (int py = y; py < y + th; py++) {
                 int rowBase = py * fw * 4;

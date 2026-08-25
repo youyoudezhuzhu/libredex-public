@@ -1,8 +1,8 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
     <string name="vnc_transport_label">VNC</string>
-    <string name="vnc_status_running">VNC 运行中\n端口: %1$d\nDeX 屏幕: %2$d\n用 TightVNC / RealVNC / noVNC 连接</string>
-    <string name="vnc_status_not_running">VNC 未运行\n端口: %1$d</string>
+    <string name="vnc_status_running">VNC 运行中\n客户端端口: %1$d\nWeb(noVNC): http://&lt;手机IP&gt;:%2$d/\nDeX 屏幕: %3$d</string>
+    <string name="vnc_status_not_running">VNC 未运行\n客户端端口: %1$d\nWeb(noVNC) 端口: %2$d</string>
     <string name="vnc_start">启动 VNC</string>
     <string name="vnc_stop">停止</string>
 </resources>

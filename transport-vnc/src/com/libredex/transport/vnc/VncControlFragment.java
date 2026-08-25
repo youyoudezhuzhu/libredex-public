@@ -82,8 +82,9 @@ public final class VncControlFragment extends Fragment {
     private String buildStatus() {
         if (VncTransportProvider.INSTANCE.isActive()) {
             return getString(R.string.vnc_status_running,
-                    DEFAULT_PORT, VncTransportProvider.INSTANCE.activeDisplayId());
+                    DEFAULT_PORT, VncTransportProvider.webPort(),
+                    VncTransportProvider.INSTANCE.activeDisplayId());
         }
-        return getString(R.string.vnc_status_not_running, DEFAULT_PORT);
+        return getString(R.string.vnc_status_not_running, DEFAULT_PORT, VncTransportProvider.webPort());
     }
 }

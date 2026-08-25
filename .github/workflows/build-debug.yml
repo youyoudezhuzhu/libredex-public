@@ -37,6 +37,18 @@ jobs:
             -PoptionalTransportModule=transport-vnc \
             -PoptionalTransportProvider=com.libredex.transport.vnc.VncTransportProvider
 
+      - name: Inspect BuildConfig.OPTIONAL_TRANSPORT_PROVIDER
+        run: |
+          echo "=== BuildConfig.OPTIONAL_TRANSPORT_PROVIDER value ==="
+          BC=$(find app/build/generated -name "BuildConfig.java" | head -1)
+          echo "BuildConfig file: $BC"
+          grep -h "OPTIONAL_TRANSPORT_PROVIDER" "$BC" || echo "FIELD NOT FOUND (buildConfigField value was empty?)"
+          echo "=== dex contains VncTransportProvider? ==="
+          APK=$(find app/build/outputs/apk/debug -name "*.apk" | head -1)
+          echo "APK: $APK"
+          unzip -o "$APK" 'classes*.dex' -d /tmp/dexcheck >/dev/null 2>&1 || true
+          grep -la 'VncTransportProvider' /tmp/dexcheck/*.dex || echo "NOT FOUND in any dex"
+
       - name: Upload APK artifact
         uses: actions/upload-artifact@v4
         with:
