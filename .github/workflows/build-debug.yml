@@ -1,0 +1,45 @@
+name: Build Debug (VNC transport)
+
+on:
+  push:
+    branches: [ master, main ]
+  workflow_dispatch:
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up JDK
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+
+      - name: Set up Android SDK
+        uses: android-actions/setup-android@v3
+
+      - name: Install SDK & NDK
+        run: |
+          yes | sdkmanager --licenses > /dev/null 2>&1 || true
+          sdkmanager "platforms;android-34" "build-tools;34.0.0" "platform-tools" "ndk;28.0.13004108"
+
+      - name: Build debug APK with VNC transport
+        run: |
+          chmod +x gradlew
+          ./gradlew clean assembleDebug \
+            -PlibredexVersionName=0.2.6 \
+            -PlibredexVersionCode=26 \
+            -PoptionalTransportModule=transport-vnc \
+            -PoptionalTransportProvider=com.libredex.transport.vnc.VncTransportProvider
+
+      - name: Upload APK artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: libredex-vnc-debug
+          path: app/build/outputs/apk/debug/*.apk
+          if-no-files-found: error
