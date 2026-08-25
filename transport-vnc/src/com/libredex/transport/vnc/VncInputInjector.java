@@ -69,6 +69,18 @@ public final class VncInputInjector {
     // ------------------------------------------------------------------
     // pointer
     // ------------------------------------------------------------------
+    private static void setEventDisplayId(MotionEvent event, int displayId) {
+        if (displayId < 0 || displayId == android.view.Display.DEFAULT_DISPLAY) {
+            return;
+        }
+        try {
+            MotionEventHidden hidden = Refine.unsafeCast(event);
+            hidden.setDisplayId(displayId);
+        } catch (Throwable t) {
+            State.log("[VNC] setEventDisplayId failed: " + t.getMessage());
+        }
+    }
+
     public static void injectPointer(int action, float x, float y, int buttonState) {
         init();
         if (inputManager == null || targetDisplayId < 0) {
